@@ -1,5 +1,4 @@
 from django.shortcuts import render, redirect
-from pymongo import MongoClient
 from bson import ObjectId
 from datetime import datetime
 
@@ -21,9 +20,8 @@ def home(request):
 
 def add_project_view(request):
     db_client = request.db_client  # Pobranie klienta bazy danych z obiektu żądania
-
-    # Uzyskanie dostępu do bazy danych MongoDB
     db = db_client['JiraDb']
+
     if request.method == 'POST':
         name = request.POST.get('name')
         description = request.POST.get('description')
@@ -31,19 +29,36 @@ def add_project_view(request):
         end_date = request.POST.get('end_date')
         status = request.POST.get('status')
         assigned_to = list(map(ObjectId, request.POST.getlist('users')))
+
         project_dict = {
-        'name': name, 'description': description, 'start_date': start_date, 'end_date': end_date, 'status': status,
-        'assigned_users': assigned_to, 'tasks': []}
-        db['projects'].insert_one(project_dict)
+            'name': name,
+            'description': description,
+            'start_date': start_date,
+            'end_date': end_date,
+            'status': status,
+            'assigned_users': assigned_to,
+            'tasks': []
+        }
+        project_id = db['projects'].insert_one(project_dict).inserted_id
+
+        # Przypisz użytkowników do projektu
+        for user_id in assigned_to:
+            db['users'].update_one(
+                {'_id': user_id},
+                {'$push': {'assigned_projects': project_id}}
+            )
+
         return redirect('/')
-    statues_set = set(('to do', 'in progress', 'finished'))
+    
+    statuses_set = set(('to do', 'in progress', 'finished'))
     users = db['users'].find()
     users_list = list()
     for user in users:
         if user['_id'] != ObjectId('664c5590b48b3d4d6ea42af8'):
             user['id'] = user['_id']
             users_list.append(user)
-    return render(request, 'add_project_view.html', context={'statues': statues_set, 'users': users_list})
+    return render(request, 'add_project_view.html', context={'statuses': statuses_set, 'users': users_list})
+
 
 def project_view(request, project_id=None):
     db_client = request.db_client
@@ -105,6 +120,7 @@ def project_view(request, project_id=None):
 def addTaskView(request, project_id=None):
     db_client = request.db_client
     db = db_client['JiraDb']
+
     if request.method == 'POST':
         name = request.POST.get('name')
         description = request.POST.get('description')
@@ -112,35 +128,44 @@ def addTaskView(request, project_id=None):
         status = request.POST.get('status')
         assigned_to = request.POST.get('assigned_to')
         labels = request.POST.getlist('labels')
+        
         if labels is None:
             labels = []
         while '' in labels:
             labels.remove('')
         if len(labels) != 0:
             labels = list(map(ObjectId, labels))
+
         add_new_task(db, name, description, due_date, status, ObjectId(assigned_to), ObjectId(project_id), labels)
+        
         project = db['projects'].find_one({'_id': ObjectId(project_id)})
         filter = {'_id': ObjectId(assigned_to)}
         push = {'assigned_task': project['tasks'][-1]['_id']}
         db['users'].update_one(filter, {"$push": push})
+        
         return redirect(f'/project/{project_id}')
+    
     project = db['projects'].find_one({'_id': ObjectId(project_id)})
     users = db['users'].find()
     users_list = []
-    statues_set = set(('to do', 'in backlog', 'analyze', 'development', 'completed'))
+    statuses_set = set(('to do', 'in backlog', 'analyze', 'development', 'completed'))
+
     for user in users:
         user['id'] = user['_id']
         if ObjectId(project_id) in user.get('assigned_projects', []):
             users_list.append(user)
+    
     labels = db['labels'].find()
     labels_list = []
     for label in labels:
         label['id'] = label['_id']
         labels_list.append(label)
+
     return render(request, 'add_task.html', context={
-        'project_name': project['name'], 'users': users_list, 'statues': statues_set, 'project_id': project_id,
+        'project_name': project['name'], 'users': users_list, 'statuses': statuses_set, 'project_id': project_id,
         'labels': labels_list
     })
+
     
 def addLabelView(request):
     db_client = request.db_client
@@ -272,10 +297,6 @@ def editUser(request, user_id=None):
         project['id'] = project['_id']
         project_list.append(project)
     return render(request, 'edit_user.html', {'user': user, 'projects': project_list})
-
-from bson import ObjectId
-from datetime import datetime
-from django.shortcuts import render, redirect
 
 def taskView(request, project_id=None, task_id=None):
     db_client = request.db_client
