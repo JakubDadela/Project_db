@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block head %}
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.0.0/dist/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+  <title>Jira-custom</title>
+  <style>
+    /* Custom styles go here */
+  </style>
+{% endblock head %}
+
+{% block body %}
+  <div class="container">
+    <h1>Add Labels</h1>
+    <form method="POST" action="">
+      {% csrf_token %}
+      <div class="form-group">
+        <label for="labelName">Label Name</label>
+        <input type="text" class="form-control" id="labelName" name="labelName" required>
+      </div>
+      <div class="form-group">
+        <label for="labelColor">Label Color</label>
+        <input type="color" class="form-control" id="labelColor" name="labelColor" required>
+      </div>
+      <button type="submit" class="btn btn-primary">Save Label</button>
+    </form>
+    <a href="javascript:void(0);" onclick="history.back();" class="btn btn-secondary">Go Back</a> <!-- Go Back link -->
+  </div>
+{% endblock body %}
+
+{% block scripts %}
+  <script>
+    // Custom scripts go here
+  </script>
+{% endblock scripts %}

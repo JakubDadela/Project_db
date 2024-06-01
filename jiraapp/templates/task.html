@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Task Details</title>
+	<style>
+		body {
+			font-family: Arial, sans-serif;
+			font-size: 16px;
+			line-height: 1.5;
+			background-color: #f2f2f2;
+		}
+
+		.container {
+			width: 80%;
+			margin: auto;
+			padding: 20px;
+			background-color: #fff;
+			box-shadow: 0 0 10px rgba(0,0,0,0.2);
+		}
+
+		h1, h2, h3 {
+			margin: 0;
+		}
+
+		h1 {
+			font-size: 32px;
+			text-align: center;
+			margin-bottom: 30px;
+			color: #333;
+		}
+
+		h2 {
+			font-size: 24px;
+			margin-bottom: 20px;
+			color: #333;
+		}
+
+		.task-details {
+			display: flex;
+			flex-direction: column;
+			margin-bottom: 30px;
+			background-color: #fff;
+			padding: 20px;
+			box-shadow: 0 0 5px rgba(0,0,0,0.1);
+		}
+
+		.task-details label {
+			font-size: 20px;
+			margin-bottom: 5px;
+			color: #333;
+		}
+
+		.task-details span {
+			font-size: 20px;
+			color: #666;
+		}
+
+		.assignee-select {
+			margin-top: 20px;
+		}
+
+		.assignee-select label {
+			font-size: 20px;
+			margin-bottom: 5px;
+			color: #333;
+			display: block;
+		}
+
+		.assignee-select select {
+			font-size: 20px;
+			padding: 10px;
+			width: 100%;
+			border: 1px solid #ccc;
+			border-radius: 5px;
+		}
+
+		.submit-button {
+			margin-top: 20px;
+			display: flex;
+			justify-content: center;
+			align-items: center;
+		}
+
+		.submit-button button {
+			background-color: #4CAF50;
+			color: white;
+			padding: 10px 20px;
+			font-size: 20px;
+			border: none;
+			border-radius: 5px;
+			cursor: pointer;
+		}
+
+		.submit-button button:hover {
+			background-color: #3e8e41;
+		}
+	</style>
+</head>
+<body>
+	<div class="container">
+		<h1>Task Details</h1>
+		<div class="task-details">
+			<h2>{{task.name}}</h2>
+			<label>Task Description:</label>
+			<span>{{task.description}}</span>
+			<label>Assigned To:</label>
+			<span>{{assignee.name}}</span>
+			<label>Labels:</label>
+			<ul>
+				{% for label in labels %}
+					<li>
+						<a href="/labels/{{ label.id }}" style="color: {{label.color}};">{{ label.name }}</a>
+						<form action="/delete-label/task/{{ task.id }}/" method="POST" style="display: inline;">
+							{% csrf_token %}
+							<input type="hidden" id="project_id" name="project_id" value={{project_id}} />
+							<input type="hidden" id="label_id" name="label_id" value={{label.id}} />
+							<button type="submit" class="btn btn-link text-danger" onclick="return confirm('Are you sure you want to delete this label?')">Delete</button>
+						</form>
+					</li>
+				{% endfor %}
+				<li>
+					<form action="/add-label/task/{{ task.id }}/" method="POST" style="display: inline;">
+						{% csrf_token %}
+						<select name="label_id" required>
+							<option value="">Select Label</option>
+							{% for label in existing_labels %}
+								<option value="{{ label.id }}">{{ label.name }}</option>
+							{% endfor %}
+							<input type="hidden" id="project_id" name="project_id" value={{project_id}} />
+						</select>
+						<button type="submit" class="btn btn-link">Add</button>
+					</form>
+				</li>
+			</ul>
+			<form action="" method="post">
+                {% csrf_token %}
+                <div class="assignee-select">
+                    <label>Assign To:</label>
+                    <select name="new_user">
+                        {% for user in users %}
+                            <option value="{{user.user_id}}">{{user.user_name}}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div name="assignee_button" class="submit-button">                    
+					<button>Save Changes</button>
+                </div>
+            </form>
+			<form action="" method="post">
+                {% csrf_token %}
+                <div class="status-select">
+                    <label>Status:</label>
+                    <select name="new_status">
+                        {% for status in statuses %}
+                            <option value="{{status}}">{{status}}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div name="status_button" class="submit-button">                    
+					<button>Save Changes</button>
+                </div>
+            </form>
+		</div>
+        <div class="comment-section">
+            <h2>Comments</h2>
+            <hr>
+			<div class="comments">
+				{% for comment in comments %}
+					<form action="" method="post">
+						{% csrf_token %}
+						<div class="comment">
+							<h5>{{comment.user}}</h5>
+							<p>{{comment.text}}</p>
+							<small class="text-muted">Posted on {{comment.date}}</small>
+								<input type="hidden" id="comment_id" name="comment_id" value={{comment.id}} />
+						</div>
+						<button type="submit" name="delete_button" class="btn btn-link text-danger">Delete</button>
+					</form>
+				{% endfor %}
+			</div>
+		</div>
+		<hr>
+		<div class="add-comment">
+			<h3>Add a comment</h3>
+			<form action="" method="post">
+				{% csrf_token %}
+				<div class="form-group">
+					<textarea name="new_comment" class="form-control" rows="10" style="width:100%;" placeholder="Enter your comment"></textarea>
+				</div>
+				<button type="submit" name="submit_button" class="btn btn-primary">Submit</button>
+				
+			</form>
+			<form action="" method="post">
+				{% csrf_token %}
+				<button name="return_button" class="btn btn-secondary" type="submit">Return to previous view</button>
+			</form>
+		</div>
+	</body>
