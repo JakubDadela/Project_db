@@ -29,7 +29,6 @@ def add_project_view(request):
         end_date = request.POST.get('end_date')
         status = request.POST.get('status')
         assigned_to = list(map(ObjectId, request.POST.getlist('users')))
-
         project_dict = {
             'name': name,
             'description': description,
@@ -54,7 +53,7 @@ def add_project_view(request):
     users = db['users'].find()
     users_list = list()
     for user in users:
-        if user['_id'] != ObjectId('664c5590b48b3d4d6ea42af8'):
+        if user['_id'] != ObjectId('66632a552c023333dbdc74a0'):
             user['id'] = user['_id']
             users_list.append(user)
     return render(request, 'add_project_view.html', context={'statuses': statuses_set, 'users': users_list})
@@ -74,21 +73,21 @@ def project_view(request, project_id=None):
             filter = {"_id": ObjectId(project_id)}
             project = db['projects'].find_one({'_id': ObjectId(project_id)})
             index = [row['_id'] for row in project['tasks']].index(ObjectId(task['id']))
-            update = {"$set": {f"tasks.{index}.assigned_to": ObjectId('664c5590b48b3d4d6ea42af8')}}
+            update = {"$set": {f"tasks.{index}.assigned_to": ObjectId('66632a552c023333dbdc74a0')}}
             db['projects'].update_one(filter, update)
-            assignee = db['users'].find_one({'_id': ObjectId('664c5590b48b3d4d6ea42af8')})
+            assignee = db['users'].find_one({'_id': ObjectId('66632a552c023333dbdc74a0')})
         elif ObjectId(project_id) not in assignee['assigned_projects']:
             project = db['projects'].find_one({'_id': ObjectId(project_id)})
             filter = {"_id": ObjectId(project_id)}
             index = [row['_id'] for row in project['tasks']].index(ObjectId(task['id']))
             old_user = project['tasks'][index]['assigned_to']
-            update = {"$set": {f"tasks.{index}.assigned_to": ObjectId('664c5590b48b3d4d6ea42af8')}}
+            update = {"$set": {f"tasks.{index}.assigned_to": ObjectId('66632a552c023333dbdc74a0')}}
             db['projects'].update_one(filter, update)
-            assignee = db['users'].find_one({'_id': ObjectId('664c5590b48b3d4d6ea42af8')})
+            assignee = db['users'].find_one({'_id': ObjectId('66632a552c023333dbdc74a0')})
 
             old_user_query = {'_id': ObjectId(old_user)}
             update_query = {
-                '_id': ObjectId('664c5590b48b3d4d6ea42af8')
+                '_id': ObjectId('66632a552c023333dbdc74a0')
             }
 
             pop_query = {
@@ -185,7 +184,7 @@ def usersView(request):
     pipeline = [
         {
             '$match': {
-                '_id': {'$ne': ObjectId('664c5590b48b3d4d6ea42af8')}
+                '_id': {'$ne': ObjectId('66632a552c023333dbdc74a0')}
             }
         },
         {
@@ -212,8 +211,12 @@ def usersView(request):
     ]
     
     users = list(db['users'].aggregate(pipeline))
+    users_list = list()
+    for user in users:
+        user['id'] = user['_id']
+        users_list.append(user)
     
-    return render(request, 'users.html', {'users': users})
+    return render(request, 'users.html', {'users': users_list})
 
 def createUserView(request):
     db_client = request.db_client
@@ -240,12 +243,16 @@ def createUserView(request):
 def deleteUser(request, user_id=None):
     db_client = request.db_client
     db = db_client['JiraDb']
-    assigned_projects = db['users'].find_one({'_id': ObjectId(user_id)})['assigned_projects']
+    
+    user = db['users'].find_one({'_id': ObjectId(user_id)})
+
+    assigned_projects = user.get('assigned_projects', [])
     for project_id in assigned_projects:
         projects_collection = db['projects']
         project = projects_collection.find_one({"_id": ObjectId(project_id)})
-        project['assigned_users'].remove(ObjectId(user_id))
-        projects_collection.update_one({"_id": ObjectId(project_id)}, {"$set": project})
+        if project:
+            project['assigned_users'].remove(ObjectId(user_id))
+            projects_collection.update_one({"_id": ObjectId(project_id)}, {"$set": project})
 
     db['users'].delete_one({'_id': ObjectId(user_id)})
     return redirect('users')
@@ -253,8 +260,9 @@ def deleteUser(request, user_id=None):
 def editUser(request, user_id=None):
     db_client = request.db_client
     db = db_client['JiraDb']
-    user = db['users'].find_one({'_id': ObjectId(user_id)})
     
+    user = db['users'].find_one({'_id': ObjectId(user_id)})
+
     if request.method == 'POST':
         name = request.POST['name']
         email = request.POST['email']
@@ -262,16 +270,17 @@ def editUser(request, user_id=None):
         role = request.POST['role']
         projects = request.POST.getlist('assigned_projects')
 
-        current_projects = user['assigned_projects']
-        current_tasks = user['assigned_task']
+        current_projects = user.get('assigned_projects', [])
+        current_tasks = user.get('assigned_task', [])
 
-        # remove old ones
+        # Remove old projects
         for project_id in current_projects:
             projects_collection = db['projects']
             project = projects_collection.find_one({"_id": ObjectId(project_id)})
-            project['assigned_users'].remove(ObjectId(user_id))
-            projects_collection.update_one({"_id": ObjectId(project_id)}, {"$set": project})
-        
+            if project:
+                project['assigned_users'].remove(ObjectId(user_id))
+                projects_collection.update_one({"_id": ObjectId(project_id)}, {"$set": project})
+
         updated_user = {
             'name': name,
             'email': email,
@@ -281,21 +290,22 @@ def editUser(request, user_id=None):
             'assigned_projects': list(map(ObjectId, projects))
         }
         db['users'].update_one({'_id': ObjectId(user_id)}, {'$set': updated_user})
-        
-        # add new ones
-        assigned_projects = db['users'].find_one({'_id':  ObjectId(user_id)})['assigned_projects']
+
+        # Add new projects
+        assigned_projects = db['users'].find_one({'_id': ObjectId(user_id)}).get('assigned_projects', [])
         for project_id in assigned_projects:
             projects_collection = db['projects']
             project = projects_collection.find_one({"_id": ObjectId(project_id)})
-            project['assigned_users'].append(ObjectId(user_id))
-            projects_collection.update_one({"_id": ObjectId(project_id)}, {"$set": project})
-    
+            if project:
+                project['assigned_users'].append(ObjectId(user_id))
+                projects_collection.update_one({"_id": ObjectId(project_id)}, {"$set": project})
+
         return redirect('users')
 
-    project_list = list()
-    for project in db['projects'].find():
+    project_list = list(db['projects'].find())
+    for project in project_list:
         project['id'] = project['_id']
-        project_list.append(project)
+
     return render(request, 'edit_user.html', {'user': user, 'projects': project_list})
 
 def taskView(request, project_id=None, task_id=None):
@@ -330,7 +340,7 @@ def taskView(request, project_id=None, task_id=None):
 
         elif request.POST.get('new_comment'):
             new_comment = request.POST.get('new_comment')
-            commentator = ObjectId('664c5590b48b3d4d6ea42af8')
+            commentator = ObjectId('66632a552c023333dbdc74a0')
             add_new_comment(request, new_comment, datetime.now(), commentator, ObjectId(project_id), ObjectId(task_id))
         
         elif request.POST.get('comment_id'):
@@ -411,21 +421,31 @@ def add_new_task(db, name, description, due_date, status, assigned_to, project_i
 def add_user_to_project_view(request, project_id=None):
     db_client = request.db_client
     db = db_client['JiraDb']
-    
+
+    exclude_user_id = ObjectId('66632a552c023333dbdc74a0')
+
     if request.method == 'POST':
         user_id = request.POST.get('user_id')
-        db['projects'].update_one(
-            {'_id': ObjectId(project_id)},
-            {'$push': {'assigned_users': ObjectId(user_id)}}
-        )
-        db['users'].update_one(
-            {'_id': ObjectId(user_id)},
-            {'$push': {'assigned_projects': ObjectId(project_id)}}
-        )
+        if ObjectId(user_id) != exclude_user_id:
+            db['projects'].update_one(
+                {'_id': ObjectId(project_id)},
+                {'$push': {'assigned_users': ObjectId(user_id)}}
+            )
+            db['users'].update_one(
+                {'_id': ObjectId(user_id)},
+                {'$push': {'assigned_projects': ObjectId(project_id)}}
+            )
         return redirect(f'/project/{project_id}')
-    
-    users = db['users'].find()
+
+    project = db['projects'].find_one({'_id': ObjectId(project_id)})
+    assigned_users_ids = project.get('assigned_users', [])
+
+    # Pobierz wszystkich użytkowników, którzy nie są przypisani do projektu i nie mają wykluczonego ID
+    users = db['users'].find({
+        '_id': {'$nin': assigned_users_ids + [exclude_user_id]}
+    })
     user_list = [{'id': user['_id'], 'name': user['name']} for user in users]
+
     return render(request, 'add_user_to_project.html', {'users': user_list, 'project_id': project_id})
     
 def get_task_counts_by_status(db, project_id):
@@ -486,4 +506,3 @@ def remove_user_from_project_view(request, project_id=None):
     user_list = [{'id': user, 'name': db['users'].find_one({'_id': user})['name']} for user in users]
     
     return render(request, 'remove_user_from_project.html', {'users': user_list, 'project_id': project_id})
-
